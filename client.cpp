@@ -8,9 +8,17 @@
 #include<unistd.h>
 #include<iostream>
 #include<cstring>
-
+#include<set>
 
 using namespace std;
+string getTime(){
+    time_t timep;
+    time(&timep);
+    char tmp[64];
+    memset(tmp,0,sizeof(tmp));
+    strftime(tmp,sizeof(tmp),"%Y-%m-%d %H:%M:%S ",localtime(&timep));
+    return tmp;
+}
 int getClientSocket(int port,string ip){
     int socket_fd = socket(AF_INET, SOCK_STREAM,0);
     if(socket_fd == -1)
@@ -31,39 +39,57 @@ int getClientSocket(int port,string ip){
     }
     return socket_fd;
 }
-bool mySelect(fd_set& fds,int fd,int usec){
+int mySelect(fd_set& fds,set<int> fd,int usec){
     timeval timeout = {0};
     timeout.tv_usec = usec;
     FD_ZERO(&fds);
-    FD_SET(fd,&fds);
-    switch(select(fd+1,&fds,NULL,NULL,&timeout)){
+    int maxfd = 0;
+    for(int i:fd){
+        maxfd = maxfd>i?maxfd:i;
+        FD_SET(i,&fds);
+    }
+
+    switch(select(maxfd+1,&fds,NULL,NULL,&timeout)){
         case -1:{
+            cout<<"select error";
             exit(1);
         }case 0:break;
         default:{
-            if(FD_ISSET(fd,&fds)){
-                return true;
+            for(int i:fd){
+
+                if(FD_ISSET(i,&fds)){
+                    return i;
+                }
             }
         }
     }
-    return false;
+    return -1;
 }
 int main()
 {
-    int socket_fd = getClientSocket(8887,"127.0.0.1");
-
-    write(socket_fd,"hello hebinbing",15);
+    string name;
+    cin>>name;
+    cout<<"Hello "<<name<<endl;
+    int socket_fd = getClientSocket(8888,"127.0.0.1");
+    write(socket_fd,name.c_str(),name.size());
     fd_set fds;
-    timeval timeout = {0};
-    timeout.tv_usec = 500;
     char recv_buff[255];
+    set<int> selectSet;
     while(1){
-        if(mySelect(fds,socket_fd,500)){
+        selectSet.clear();
+        selectSet.insert(socket_fd);
+        if(mySelect(fds,selectSet,500) == socket_fd){
             ssize_t recv_size = read(socket_fd,recv_buff,255);
-            printf("%s\n",recv_buff);
+            if(recv_size<=0){
+                break;
+            }
+            cout<<getTime();
+            printf("%s",recv_buff);
             memset(recv_buff,0,sizeof(recv_buff));
         }
-        if(mySelect(fds,STDIN_FILENO,500)){
+        selectSet.clear();
+        selectSet.insert(STDIN_FILENO);
+        if(mySelect(fds,selectSet,500) == STDIN_FILENO){
             ssize_t recv_size = read(STDIN_FILENO,recv_buff,255);
             if(send(socket_fd,recv_buff,sizeof(recv_buff),0)<=0){
                 cout<<"write error\n";

@@ -74,22 +74,25 @@ int main()
     write(socket_fd,name.c_str(),name.size());
     fd_set fds;
     char recv_buff[255];
-    set<int> selectSet;
+    set<int> clientSelectSet,cinSelectSet;
+    clientSelectSet.insert(socket_fd);
+    cinSelectSet.insert(STDIN_FILENO);
     while(1){
-        selectSet.clear();
-        selectSet.insert(socket_fd);
-        if(mySelect(fds,selectSet,500) == socket_fd){
+        if(mySelect(fds,clientSelectSet,500) == socket_fd){
             ssize_t recv_size = read(socket_fd,recv_buff,255);
+            cout<<getTime();
             if(recv_size<=0){
+                cout<<"shutdown"<<endl;
                 break;
             }
-            cout<<getTime();
+            if(recv_buff[0] == 'N'){
+                cout<<"sign in fail"<<endl;
+                break;
+            }
             printf("%s",recv_buff);
             memset(recv_buff,0,sizeof(recv_buff));
         }
-        selectSet.clear();
-        selectSet.insert(STDIN_FILENO);
-        if(mySelect(fds,selectSet,500) == STDIN_FILENO){
+        if(mySelect(fds,cinSelectSet,500) == STDIN_FILENO){
             ssize_t recv_size = read(STDIN_FILENO,recv_buff,255);
             if(send(socket_fd,recv_buff,sizeof(recv_buff),0)<=0){
                 cout<<"write error\n";

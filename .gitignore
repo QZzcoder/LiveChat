@@ -1,0 +1,5 @@
+client.o
+client
+server.o
+server
+SocketManager.o

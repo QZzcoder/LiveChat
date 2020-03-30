@@ -12,13 +12,8 @@
 #include<time.h>
 #include<sys/time.h>
 #include<mysql/mysql.h>
-
+#include"SocketManager.h"
 using namespace std;
-long timeStamp(){
-    struct timeval tv;
-    gettimeofday(&tv,NULL);
-    return tv.tv_sec; 
-}
 vector<string> getOldMsg(string name){
     vector<string> ret;
     MYSQL mysql_conn;
@@ -137,80 +132,11 @@ bool newUser(string name,string password){
     return !mysql_query(&mysql_conn,sql.c_str());
 }
 
-vector<string> splitString(string s,char flag){
-    vector<string> ret;
-
-    for(int i = 0;i<s.size();i++){
-        if(s[i] == flag){
-            ret.push_back(s.substr(0,i));
-            ret.push_back(s.substr(i+1,s.size()-i-1));
-            return ret;
-        }
-    }
-    return ret;
-}
-string getTime(){
-    time_t timep;
-    time(&timep);
-    char tmp[64];
-    memset(tmp,0,sizeof(tmp));
-    strftime(tmp,sizeof(tmp),"%Y-%m-%d %H:%M:%S ",localtime(&timep));
-    return tmp;
-}
-
-int getServerSocket(int port,string ip){
-    int socket_fd = socket(AF_INET, SOCK_STREAM, 0);
-    if (socket_fd == -1)
-    {
-        cout << "socket 创建失败： "<< endl;
-        exit(1);
-    }
-    struct sockaddr_in addr;
-    addr.sin_family = AF_INET;
-    addr.sin_port = htons(port);//将一个无符号短整型的主机数值转换为网络字节顺序，即大尾顺序(big-endian)
-    addr.sin_addr.s_addr = inet_addr(ip.c_str());//net_addr方法可以转化字符串，主要用来将一个十进制的数转化为二进制的数，用途多于ipv4的IP转化。
-    bool nOptval = true;
-    setsockopt(socket_fd,SOL_SOCKET,SO_REUSEADDR,(const void*)&nOptval,sizeof(bool));
-    int res = bind(socket_fd,(struct sockaddr*)&addr,sizeof(addr));
-    if (res == -1)
-    {
-        cout << "bind创建失败： " << endl;
-        exit(-1);
-    }
-    return socket_fd;
-}
-int mySelect(fd_set& fds,set<int> fd,int usec){
-    timeval timeout = {0};
-    timeout.tv_usec = usec;
-    FD_ZERO(&fds);
-    int maxfd = 0;
-    for(int i:fd){
-        maxfd = maxfd>i?maxfd:i;
-        FD_SET(i,&fds);
-    }
-    switch(select(maxfd+1,&fds,NULL,NULL,&timeout)){
-        case -1:{
-            cout<<"select error";
-            exit(1);
-        }case 0:break;
-        default:{
-            for(int i:fd){
-                if(FD_ISSET(i,&fds)){
-                    return i;
-                }
-            }
-        }
-    }
-    return -1;
-}
 int main()
 {
-    int socket_fd = getServerSocket(8888,"127.0.0.1");
+    int socket_fd = getSocket(8888,"127.0.0.1",true);
     cout << "bind ok 等待客户端的连接" << endl;
-    //4.监听客户端listen()函数
-    //参数二：进程上限，一般小于30
-    listen(socket_fd,30);
-    //5.等待客户端的连接accept()，返回用于交互的socket描述符
+
     struct sockaddr_in client;
     socklen_t len = sizeof(client);
     

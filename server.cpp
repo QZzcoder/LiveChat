@@ -12,8 +12,23 @@
 #include<time.h>
 #include<sys/time.h>
 #include<mysql/mysql.h>
+#include<deque>
+#include<mutex>
+#include<thread>
+#include<condition_variable>
 #include"SocketManager.h"
 using namespace std;
+
+Blockqueue<int> bq;
+int socket_fd;
+struct sockaddr_in client;
+
+fd_set fds;
+
+map<string,int> name2sock;
+set<int> serverSelectSet,clientSelectSet,cinSelectSet;
+socklen_t len;
+
 vector<string> getOldMsg(string name){
     vector<string> ret;
     MYSQL mysql_conn;
@@ -29,13 +44,6 @@ vector<string> getOldMsg(string name){
         ptr_res = mysql_use_result(&mysql_conn);
         if(ptr_res){
             result_row = mysql_fetch_row(ptr_res);
-
-            // while((result_row = mysql_fetch_row(ptr_res))!=NULL){
-            //     for(int i = 0;i<mysql_num_fields(ptr_res);i++){
-            //         cout<<atol(result_row[i]);
-            //     }
-            //     cout<<endl;
-            // }
         }
     }
     string logofftime = result_row[0];
@@ -46,7 +54,6 @@ vector<string> getOldMsg(string name){
         exit(1);
     }
     sql = "select * from message where target = \"" + name + "\" and time > "+logofftime+";";
-    cout<<sql;
     if(!mysql_query(&mysql_conn,sql.c_str())){
         ptr_res = mysql_use_result(&mysql_conn);
         if(ptr_res){
@@ -103,7 +110,6 @@ bool userCheck(string name,string password){
         exit(1);
     }
     string sql = "select * from User where name = \"" + name + "\" and password = "+password+";";
-    cout<<sql;
     if(!mysql_query(&mysql_conn,sql.c_str())){
         ptr_res = mysql_use_result(&mysql_conn);
         return mysql_fetch_row(ptr_res)!=NULL;
@@ -132,25 +138,15 @@ bool newUser(string name,string password){
     return !mysql_query(&mysql_conn,sql.c_str());
 }
 
-int main()
-{
-    int socket_fd = getSocket(8888,"127.0.0.1",true);
-    cout << "bind ok 等待客户端的连接" << endl;
 
-    struct sockaddr_in client;
-    socklen_t len = sizeof(client);
-    
-
-    fd_set fds;
-
-    char recv_buff[255];
-    map<string,int> name2sock;
-    set<int> serverSelectSet,clientSelectSet,cinSelectSet;
-    serverSelectSet.insert(socket_fd);
-    cinSelectSet.insert(STDIN_FILENO);
+void oneLoop(){
     while(1){
-        //处理登录
-        if(mySelect(fds,serverSelectSet,0) == socket_fd){
+        char recv_buff[255];
+        int sock = bq.take();
+        cout<<"loop::"<<sock<<endl;
+        if(sock == -404){
+            break;
+        }else if(sock == socket_fd){
             cout<<getTime()<<"User sign up：";
             int client_fd = accept(socket_fd,(struct sockaddr*)&client,&len);
             if (client_fd == -1)
@@ -162,7 +158,7 @@ int main()
 
             ssize_t recv_size = read(client_fd,signMsg,255);
             vector<string> vec = splitString(signMsg,'@');
-            memset(signMsg,0,255);
+            ::memset(signMsg,0,255);
 
             if(vec.size() != 2 ||!userCheck(vec[0],vec[1])){//登录失败
                 send(client_fd,"N",1,0);
@@ -179,10 +175,8 @@ int main()
                 clientSelectSet.insert(client_fd);
                 name2sock[vec[0]] = client_fd;
             }
-        }
-        //一次收发
-        int activeClient = mySelect(fds,clientSelectSet,0);
-        if(activeClient > 0){
+        }else if(clientSelectSet.count(sock) == 1){
+            int activeClient = sock;
             string oriName;
             for(auto it:name2sock){
                 if(it.second == activeClient){
@@ -205,8 +199,40 @@ int main()
                 send(name2sock[msg[0]],msg[1].c_str(),msg[1].size(),0);
             }
             cout<<getTime();
-            printf("message:%s",recv_buff);
-            memset(recv_buff,0,sizeof(recv_buff));
+            ::printf("message:%s",recv_buff);
+            ::memset(recv_buff,0,sizeof(recv_buff));
+        }
+    }
+    cout<<"loop break\n";
+}
+
+int main()
+{
+    int shutDownNum = -404;
+    socket_fd = getSocket(8888,"127.0.0.1",true);
+    cout << "bind ok 等待客户端的连接" << endl;
+
+    len = sizeof(client);
+
+    char recv_buff[255];
+
+    serverSelectSet.insert(socket_fd);
+    cinSelectSet.insert(STDIN_FILENO);
+    thread t1(oneLoop);
+    thread t2(oneLoop);
+    thread t3(oneLoop);
+    while(1){
+        //处理登录
+        if(mySelect(fds,serverSelectSet,0) == socket_fd){
+            bq.put(socket_fd);
+            cout<<"main1::"<<socket_fd<<endl;
+        }
+        //一次收发
+        int activeClient = mySelect(fds,clientSelectSet,0);
+        if(clientSelectSet.count(activeClient) == 1){
+            bq.put(activeClient);
+            cout<<"main2::"<<activeClient<<endl;
+
         }
         //服务器控制
         if(mySelect(fds,cinSelectSet,500) == STDIN_FILENO){
@@ -217,6 +243,9 @@ int main()
                 for(auto it:name2sock){
                     cout<<it.first<<" shutdown"<<endl;
                     close(it.second);
+                }
+                for(int i = 0;i<3;i++){
+                    bq.put(shutDownNum);
                 }
 
                 break;
@@ -231,5 +260,8 @@ int main()
     }
     //7.关闭sockfd
     close(socket_fd);
+    t1.join();
+    t2.join();
+    t3.join();
     return 0;
 }

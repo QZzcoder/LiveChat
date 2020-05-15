@@ -134,7 +134,6 @@ bool newUser(string name,string password){
     if(!ptr_res){return false;}
 
     sql = "insert into User values(\""+name+"\",\""+password+"\",0);";
-    cout<<sql;
     return !mysql_query(&mysql_conn,sql.c_str());
 }
 
@@ -143,7 +142,6 @@ void oneLoop(){
     while(1){
         char recv_buff[255];
         int sock = bq.take();
-        cout<<"loop::"<<sock<<endl;
         if(sock == -404){
             break;
         }else if(sock == socket_fd){
@@ -169,7 +167,7 @@ void oneLoop(){
                 cout<<"old msg to "<<vec[0]<<endl;
                 vector<string> oldMsg = getOldMsg(vec[0]);
                 for(string s:oldMsg){
-                    cout<<"    "<<s<<endl;
+                    cout<<"    "<<s;
                     send(client_fd,s.c_str(),s.size(),0);
                 }
                 clientSelectSet.insert(client_fd);
@@ -187,7 +185,6 @@ void oneLoop(){
             ssize_t recv_size = read(activeClient,recv_buff,255);
             if(recv_size<=0){
                 updateTime(oriName);
-                cout<<oriName<<" shutdown"<<endl;
                 clientSelectSet.erase(name2sock[oriName]);
                 name2sock.erase(oriName);
                 continue;
@@ -203,7 +200,6 @@ void oneLoop(){
             ::memset(recv_buff,0,sizeof(recv_buff));
         }
     }
-    cout<<"loop break\n";
 }
 
 int main()
@@ -211,6 +207,8 @@ int main()
     int shutDownNum = -404;
     socket_fd = getSocket(8888,"127.0.0.1",true);
     cout << "bind ok 等待客户端的连接" << endl;
+    cout << "新建用户: 用户名&密码" << endl;
+    cout << "退出: end" << endl;
 
     len = sizeof(client);
 
@@ -225,19 +223,16 @@ int main()
         //处理登录
         if(mySelect(fds,serverSelectSet,0) == socket_fd){
             bq.put(socket_fd);
-            cout<<"main1::"<<socket_fd<<endl;
         }
         //一次收发
         int activeClient = mySelect(fds,clientSelectSet,0);
         if(clientSelectSet.count(activeClient) == 1){
             bq.put(activeClient);
-            cout<<"main2::"<<activeClient<<endl;
 
         }
         //服务器控制
         if(mySelect(fds,cinSelectSet,500) == STDIN_FILENO){
             ssize_t recv_size = read(STDIN_FILENO,recv_buff,255);
-            cout<<recv_buff;
             if(recv_buff[0] == 'e' &&recv_buff[1] == 'n' &&recv_buff[2] == 'd'){
                 cout<<getTime()<<"server Shutdown"<<endl;
                 for(auto it:name2sock){
@@ -252,9 +247,9 @@ int main()
             }
             vector<string> msg = splitString(recv_buff,'&');
             if(msg.size() == 2&&newUser(msg[0],msg[1])){
-                cout<<getTime()<<"insert complete:"<<msg[0]<<":"<<msg[1];
+                cout<<getTime()<<"新用户添加成功:"<<msg[0]<<"--"<<msg[1];
             }else{
-                cout<<"split : &"<<endl;
+                cout<<"用户名和密码间隔 : &"<<endl;
             }
         }
     }

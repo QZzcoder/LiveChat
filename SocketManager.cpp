@@ -52,7 +52,6 @@ int mySelect(fd_set& fds,set<int> fd,int usec){
         maxfd = maxfd>i?maxfd:i;
         FD_SET(i,&fds);
     }
-
     switch(select(maxfd+1,&fds,NULL,NULL,&timeout)){
         case -1:{
             cout<<"select error";
@@ -60,7 +59,6 @@ int mySelect(fd_set& fds,set<int> fd,int usec){
         }case 0:break;
         default:{
             for(int i:fd){
-
                 if(FD_ISSET(i,&fds)){
                     return i;
                 }

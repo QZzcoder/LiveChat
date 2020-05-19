@@ -28,6 +28,7 @@ fd_set fds;
 map<string,int> name2sock;
 set<int> serverSelectSet,clientSelectSet,cinSelectSet;
 socklen_t len;
+char dbpassword[] = "0520";//在此处更改密码
 
 vector<string> getOldMsg(string name){
     vector<string> ret;
@@ -35,7 +36,7 @@ vector<string> getOldMsg(string name){
     MYSQL_RES * ptr_res;
     MYSQL_ROW result_row;
     mysql_init(&mysql_conn);
-    if(!mysql_real_connect(&mysql_conn,"localhost","root","0520","Chat",0,NULL,0)){
+    if(!mysql_real_connect(&mysql_conn,"localhost","root",dbpassword,"Chat",0,NULL,0)){
         cout<<"mysql error";
         exit(1);
     }
@@ -49,7 +50,7 @@ vector<string> getOldMsg(string name){
     string logofftime = result_row[0];
 
     mysql_init(&mysql_conn);
-    if(!mysql_real_connect(&mysql_conn,"localhost","root","0520","Chat",0,NULL,0)){
+    if(!mysql_real_connect(&mysql_conn,"localhost","root",dbpassword,"Chat",0,NULL,0)){
         cout<<"mysql error";
         exit(1);
     }
@@ -75,7 +76,7 @@ bool storeMessage(string origin,string target,string msg){
     MYSQL_RES * ptr_res;
     MYSQL_ROW result_row;
     mysql_init(&mysql_conn);
-    if(!mysql_real_connect(&mysql_conn,"localhost","root","0520","Chat",0,NULL,0)){
+    if(!mysql_real_connect(&mysql_conn,"localhost","root",dbpassword,"Chat",0,NULL,0)){
         cout<<"mysql error";
         exit(1);
     }
@@ -90,7 +91,7 @@ bool updateTime(string name){
     MYSQL_RES * ptr_res;
     MYSQL_ROW result_row;
     mysql_init(&mysql_conn);
-    if(!mysql_real_connect(&mysql_conn,"localhost","root","0520","Chat",0,NULL,0)){
+    if(!mysql_real_connect(&mysql_conn,"localhost","root",dbpassword,"Chat",0,NULL,0)){
         cout<<"mysql error";
         exit(1);
     }
@@ -105,7 +106,7 @@ bool userCheck(string name,string password){
     MYSQL_RES * ptr_res;
     MYSQL_ROW result_row;
     mysql_init(&mysql_conn);
-    if(!mysql_real_connect(&mysql_conn,"localhost","root","0520","Chat",0,NULL,0)){
+    if(!mysql_real_connect(&mysql_conn,"localhost","root",dbpassword,"Chat",0,NULL,0)){
         cout<<"mysql error";
         exit(1);
     }
@@ -124,7 +125,7 @@ bool newUser(string name,string password){
     MYSQL_RES * ptr_res;
     MYSQL_ROW result_row;
     mysql_init(&mysql_conn);
-    if(!mysql_real_connect(&mysql_conn,"localhost","root","0520","Chat",0,NULL,0)){
+    if(!mysql_real_connect(&mysql_conn,"localhost","root",dbpassword,"Chat",0,NULL,0)){
         cout<<"mysql error";
         exit(1);
     }
@@ -183,7 +184,7 @@ void oneLoop(){
                 }
             }
             ssize_t recv_size = read(activeClient,recv_buff,255);
-            if(recv_size<=0){
+            if(recv_size<=0){//客户端退出
                 updateTime(oriName);
                 clientSelectSet.erase(name2sock[oriName]);
                 name2sock.erase(oriName);
@@ -254,9 +255,9 @@ int main()
         }
     }
     //7.关闭sockfd
-    close(socket_fd);
     t1.join();
     t2.join();
     t3.join();
+    close(socket_fd);
     return 0;
 }
